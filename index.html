@@ -12,6 +12,18 @@
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-180.png">
 <title>Shoe Reader</title>
+<script>
+// Phones in "desktop site" mode lay the page out ~1000px wide and shrink it. Scale back up to the real screen width.
+(function(){
+  function fit(){
+    var d=document.documentElement; d.style.zoom='';
+    var coarse=window.matchMedia && matchMedia('(pointer:coarse)').matches;
+    var f=window.innerWidth/screen.width;
+    if(coarse && screen.width<820 && f>1.15) d.style.zoom=String(f);
+  }
+  fit(); addEventListener('resize',fit); addEventListener('orientationchange',function(){ setTimeout(fit,250); });
+})();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
 <style>
@@ -110,6 +122,8 @@ button{cursor:pointer}
 .seathead input{background:transparent;border:none;font-weight:600;font-size:16px;width:100%;min-width:0;flex:1;padding:0}
 .seathead .btn{width:28px;height:28px;padding:0;border-radius:50%;background:var(--surface-3)}
 .seatbox label.row{flex-wrap:nowrap;align-items:flex-start;gap:8px}
+.seatbox input[type=checkbox]{flex:none;width:20px;height:20px;margin:1px 0 0;accent-color:var(--accent)}
+.seatbox label.row{font-family:var(--f-ui);font-size:13px;line-height:1.35}
 .seatbox .row{flex-wrap:nowrap;gap:6px}
 .seatbox .row .btn{padding:6px 12px;background:var(--surface-3)}
 .seatbox .row input.small,.seatbox select.small{flex:1;min-width:0;width:auto;background:var(--surface);border:none;border-radius:10px;padding:8px 10px}
@@ -224,6 +238,12 @@ input.small,select.small{background:var(--surface-2);border:none;border-radius:1
 .nav .fab svg{width:24px;height:24px}
 .nav .fab:disabled{opacity:.45}
 .fab-label{position:absolute;bottom:calc(84px + env(safe-area-inset-bottom, 0px));left:50%;transform:translateX(-50%);font-size:11px;color:var(--muted);font-family:var(--f-mono);white-space:nowrap;pointer-events:none}
+@media (max-width:520px){
+  .seats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .card{padding:16px}
+  .actions button{padding:15px 8px;font-size:16px}
+  .stat.big .v{font-size:58px}
+}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 <style>
