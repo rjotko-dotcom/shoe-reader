@@ -155,6 +155,19 @@ button{cursor:pointer}
 .seatline{display:grid;grid-template-columns:76px minmax(0,1fr);gap:10px;align-items:center}
 .targets button .count{font-family:var(--f-mono);font-size:11px;opacity:.7;margin-left:4px}
 
+/* My money */
+.money-top{display:grid;gap:4px}
+.money-v{font-size:44px;font-weight:500;line-height:1;letter-spacing:-.02em}
+.money-bet{display:grid;grid-template-columns:auto 96px;gap:4px 10px;align-items:center}
+.money-bet .kbd{grid-column:1/-1}
+.money-bet input{background:var(--surface-2);border:none;border-radius:12px;padding:10px 12px;font-size:18px;width:96px;color:var(--ink)}
+.money-btns{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.money-btns button{border:none;border-radius:14px;padding:12px 4px;background:var(--surface-2);font-weight:600;font-size:14px;line-height:1.15}
+.money-btns button.win{background:color-mix(in srgb,var(--good) 16%,var(--surface-2));color:var(--good)}
+.money-btns button.lose{background:color-mix(in srgb,var(--bad) 14%,var(--surface-2));color:var(--bad)}
+.m-log{display:flex;gap:6px;flex-wrap:wrap}
+.m-log span{font-family:var(--f-mono);font-size:12px;padding:3px 8px;border-radius:999px;background:var(--surface-2)}
+
 /* Advice */
 .verdict{border-radius:var(--r-md);padding:16px;display:grid;gap:6px;background:var(--surface-2)}
 .verdict .act{font-size:clamp(46px,12vw,64px);font-weight:700;line-height:.95;letter-spacing:-.02em}
@@ -298,6 +311,19 @@ img{max-width:100%}
       <div class="row"><button class="btn small" id="gAdd">+ Add seat</button><span class="grow"></span><span class="kbd">keys H S D P R · Space deals</span></div>
     </section>
 
+    <section class="card" aria-label="My money" id="moneyCard" hidden>
+      <div class="card-head"><h2>My money</h2><span class="kbd" id="m-session"></span></div>
+      <div class="money-top"><span class="money-v mono" id="m-money">€150</span><span class="kbd" id="m-plan"></span></div>
+      <div class="money-bet"><label for="m-bet" class="lbl">This hand’s bet (€)</label><input id="m-bet" class="mono" type="number" min="0" step="1" inputmode="decimal"><span class="kbd" id="m-betsrc"></span></div>
+      <div class="money-btns" role="group" aria-label="Result of my hand">
+        <button class="lose" data-res="-1">Lost</button><button data-res="0">Push</button><button class="win" data-res="1">Won</button><button class="win" data-res="bj">Blackjack</button>
+        <button class="lose" data-res="-2">Doubled, lost</button><button class="win" data-res="2">Doubled, won</button><button class="lose" data-res="-0.5">Surrendered</button><button data-res="other">Other…</button>
+      </div>
+      <div class="row" id="m-otherRow" hidden><input id="m-other" class="small mono" type="number" step="1" inputmode="decimal" placeholder="−16 or +24" style="flex:1"><button class="btn small" id="m-otherAdd">Add</button></div>
+      <div class="toast" id="m-note" aria-live="polite"></div>
+      <div class="row"><div class="m-log" id="m-log"></div><span class="grow"></span><button class="btn small" id="m-undo">Undo</button><button class="btn small ghost" id="m-reset">Restart</button></div>
+    </section>
+
     <section class="card" aria-label="Real cards" id="realPanel" hidden>
       <div class="card-head"><h2>Real cards</h2><button class="btn small ghost" data-open-guide>Guide</button></div>
       <div class="hint" aria-live="polite"><span class="n" id="hintN">1</span><span id="hintT"></span></div>
@@ -431,9 +457,10 @@ img{max-width:100%}
         <label>Enter (sit down) at<select id="r-entry"><option value="-99">Play every hand</option><option value="0">TC 0 or higher</option><option value="1" selected>TC +1 or higher</option><option value="2">TC +2 or higher</option><option value="3">TC +3 or higher</option></select></label>
         <label>Leave (sit out) at<select id="r-exit"><option value="0">TC 0 or lower</option><option value="-1" selected>TC −1 or lower</option><option value="-2">TC −2 or lower</option><option value="-99">Never</option></select></label>
         <label>Max bet (units)<input id="r-spread" type="number" min="1" step="1" value="12"></label>
-        <label>Real cards: bankroll<input id="r-bank" type="number" min="0" step="100" value="10000"></label>
-        <label>Real cards: betting unit<input id="r-unit" type="number" min="1" step="1" value="25"></label>
-        <label>Real cards: Kelly fraction<select id="r-kelly"><option value="0.25">Quarter (safer)</option><option value="0.5" selected>Half</option><option value="1">Full (aggressive)</option></select></label>
+        <label>My money at the start (€)<input id="r-bank" type="number" min="1" step="10" value="150"></label>
+        <label>Smallest bet allowed (€)<input id="r-unit" type="number" min="1" step="1" value="1"></label>
+        <label>Betting style<select id="r-style"><option value="safe">Safe: unit = money ÷ 150</option><option value="smart" selected>Aggressive but smart: money ÷ 75</option><option value="bold">Bold: money ÷ 40</option></select></label>
+        <label>Bet size<select id="r-auto"><option value="1">Follows my money (step plan)</option><option value="0">Fixed: always the smallest bet</option></select></label>
       </div>
     </section>
     <section class="card">
@@ -997,12 +1024,14 @@ function simulate(rules, n, counter, spread, acc, wong){
 const $ = s=>document.querySelector(s);
 const SUITS = ['♠','♥','♦','♣'];
 const state = { rules:{decks:6,h17:false,das:true,ls:true,bj:1.5,peek:true,pen:.8,variant:'classic'}, entry:1, exit:-1, inReal:false, view:'play', guideSeen:false, sys:'hilo', mode:'game', hideCount:false, coach:true,
-  bank:10000, unit:25, spread:12, kelly:.5, seen:{}, log:[], target:'o', round:{o:[],d:[],p:[]} };
+  money:150, moneyLog:[], style:'smart', autoUnit:true, curUnit:2, betNow:null,
+  bank:150, unit:1, spread:12, kelly:.5, seen:{}, log:[], target:'o', round:{o:[],d:[],p:[]} };
 const LS_KEY='shoe-reader-v3';
 const MIN=10, BUYIN=1000;
 const newSeat=(name,bot)=>({name, bot, chips:BUYIN, bet:MIN, hands:[], ins:0, last:null, side:null, sideStake:0, stats:{moves:0,good:0}});
 let game = {S:null, seats:[newSeat('You',false),newSeat('Friend',false),newSeat('Claude',true)], dealer:[], dealerIds:[], holeShown:false, phase:'bet', cur:{s:0,h:0}, insIdx:0, msg:'Set your bets and press Deal.'};
-try{ const s=JSON.parse(localStorage.getItem(LS_KEY)||'null'); if(s){ Object.assign(state,s.state||{}); if(s.game) game=s.game; } }catch(e){}
+try{ const s=JSON.parse(localStorage.getItem(LS_KEY)||'null'); if(s){ Object.assign(state,s.state||{}); if(s.game) game=s.game;
+  if(s.state && s.state.money===undefined){ state.bank=150; state.unit=1; state.spread=12; state.money=150; state.curUnit=2; } } }catch(e){} // one-time move to the money tracker
 if(!game.S || !game.S.ids) game.S=makeShoe(state.rules.decks, state.rules.pen, state.rules.variant);
 function save(){ try{ localStorage.setItem(LS_KEY, JSON.stringify({state, game})); }catch(e){} }
 const activeSeen = ()=> state.mode==='game' ? game.S.seen : state.seen;
@@ -1019,7 +1048,8 @@ function syncInputs(){
   $('#r-entry').value=state.entry; $('#r-exit').value=state.exit;
   $('#r-var').value=state.rules.variant||'classic'; $('#gTwo').checked=!!state.twoHands;
   $('#r-pen').value=state.rules.pen; $('#gWong').checked=!!state.wong; $('#gHole').checked=!!state.holeMode; $('#hideCount').checked=state.hideCount; $('#gCoach').checked=state.coach;
-  sysSel.value=state.sys; $('#r-bank').value=state.bank; $('#r-unit').value=state.unit; $('#r-spread').value=state.spread; $('#r-kelly').value=state.kelly;
+  sysSel.value=state.sys; $('#r-bank').value=state.bank; $('#r-unit').value=state.unit; $('#r-spread').value=state.spread;
+  $('#r-style').value=state.style; $('#r-auto').value=state.autoUnit?'1':'0';
 }
 syncInputs();
 document.querySelector('.rail').addEventListener('change', e=>{ if(e.target.id==='inReal'){ state.inReal=e.target.checked; render(); } });
@@ -1033,8 +1063,12 @@ $('#rulesBox').addEventListener('change', e=>{
   else if(id==='r-pen'){ state.rules.pen=+v; game.S.cut=Math.floor(game.S.cards.length*state.rules.pen); }
   else if(id==='r-h17') state.rules.h17=v==='1'; else if(id==='r-das') state.rules.das=v==='1';
   else if(id==='r-ls') state.rules.ls=v==='1'; else if(id==='r-bj') state.rules.bj=+v; else if(id==='r-peek') state.rules.peek=v==='1';
-  else if(id==='r-sys') state.sys=v; else if(id==='r-bank') state.bank=Math.max(0,+v||0);
-  else if(id==='r-unit') state.unit=Math.max(1,+v||1); else if(id==='r-spread') state.spread=Math.max(1,+v||1); else if(id==='r-kelly') state.kelly=+v;
+  else if(id==='r-sys') state.sys=v;
+  else if(id==='r-bank'){ state.bank=Math.max(1,+v||1); restartMoney(); }
+  else if(id==='r-unit'){ state.unit=Math.max(1,+v||1); state.curUnit=pickUnit(state.money); state.betNow=null; }
+  else if(id==='r-spread'){ state.spread=Math.max(1,+v||1); state.betNow=null; }
+  else if(id==='r-style'){ state.style=v; state.curUnit=pickUnit(state.money); state.betNow=null; }
+  else if(id==='r-auto'){ state.autoUnit=v==='1'; state.curUnit=pickUnit(state.money); state.betNow=null; }
   render();
 });
 
@@ -1057,11 +1091,11 @@ function addCard(r){
   render();
 }
 function undo(){ const last=state.log.pop(); if(!last) return; state.seen[last.r]--; const arr=state.round[last.t]; const i=arr.lastIndexOf(last.r); if(i>=0) arr.splice(i,1); render(); }
-function nextRound(){ state.round={o:[],d:[],p:[]}; setTarget('o'); render(); }
+function nextRound(){ state.round={o:[],d:[],p:[]}; state.betNow=null; setTarget('o'); render(); }
 let shuffleArmed=false;
 $('#shuffle').addEventListener('click',()=>{ const b=$('#shuffle');
   if(!shuffleArmed){ shuffleArmed=true; b.textContent='Tap again to reset shoe'; setTimeout(()=>{shuffleArmed=false;b.textContent='Shuffle';},3000); return; }
-  shuffleArmed=false; b.textContent='Shuffle'; state.inReal=false; state.seen={}; state.log=[]; state.round={o:[],d:[],p:[]}; setTarget('o'); render(); });
+  shuffleArmed=false; b.textContent='Shuffle'; state.inReal=false; state.betNow=null; state.seen={}; state.log=[]; state.round={o:[],d:[],p:[]}; setTarget('o'); render(); });
 $('#undo').addEventListener('click',undo); $('#next').addEventListener('click',nextRound);
 document.addEventListener('keydown',e=>{
   if(e.target.matches('input,select,textarea')||e.metaKey||e.ctrlKey||e.altKey) return;
@@ -1096,22 +1130,22 @@ function render(){
   const bet=betAdvice(S.edge,state.bank,state.unit,state.kelly,state.spread);
   if(state.mode==='game'){ const u=rampUnits(S.hiloTC,state.spread);
     $('#betV').textContent=money(u*MIN); $('#betS').innerHTML=`<span class="pill ${u>1?'good':'warn'}">${u} unit${u>1?'s':''}</span> Claude’s bet by the count`; }
-  else { $('#betV').textContent=money(bet.amount);
-  $('#betS').innerHTML = S.edge>0 ? `<span class="pill good">${bet.units} unit${bet.units>1?'s':''}</span> Kelly ${money(bet.kelly)}`
-     : (S.hiloTC<=-1 ? `<span class="pill bad">Leave or sit out</span>` : `<span class="pill warn">Minimum</span> no edge yet`); }
+  else { const g=wongSignal(S.hiloTC, state.inReal, state.entry, state.exit, state.spread), u=curUnit();
+    $('#betV').textContent = g.units ? eur(g.units*u) : '—';
+    $('#betS').innerHTML = g.units ? `<span class="pill ${g.units>1?'good':'warn'}">${g.units} × ${eur(u)}</span> max ${eur(u*state.spread)}` : `<span class="pill bad">Sit out</span> unit ${eur(u)}`; }
   // Back-counting signal
   let sig, who='';
   if(state.mode==='game'){ const me=game.seats.find(s=>s.follow&&!s.bot)||game.seats.find(s=>!s.bot); sig=me?seatSignal(me):wongSignal(S.hiloTC,false,state.entry,state.exit,state.spread); who=me?me.name+': ':''; }
   else sig=wongSignal(S.hiloTC, state.inReal, state.entry, state.exit, state.spread);
   $('#sigV').textContent=sig.code; $('#sigV').className='sig-'+sig.code;
-  const unit = state.mode==='game' ? MIN : state.unit;
-  $('#sigS').innerHTML = who + ({ENTER:`sit down, bet ${money(sig.units*unit)}${sig.two&&state.twoHands?' on two hands':''}`, PLAY:`keep playing, bet ${money(sig.units*unit)}${sig.two&&state.twoHands?' on two hands':''}`,
+  const unit = state.mode==='game' ? MIN : curUnit();
+  $('#sigS').innerHTML = who + ({ENTER:`sit down, bet ${eur(sig.units*unit)}${sig.two&&state.twoHands?' on two hands':''}`, PLAY:`keep playing, bet ${eur(sig.units*unit)}${sig.two&&state.twoHands?' on two hands':''}`,
     WAIT:`count below ${state.entry<=-99?'—':fmt(state.entry,0)}: watch, don’t bet`, LEAVE:`count fell to ${fmt(state.exit,0)} or lower: sit out`})[sig.code]
     + (state.mode==='real' ? `<br><label class="kbd"><input type="checkbox" id="inReal" ${state.inReal?'checked':''}> I’m playing now</label>` : '');
   document.querySelector('.rail').classList.toggle('hidecount', state.hideCount);
   document.querySelectorAll('.modes button').forEach(b=>b.setAttribute('aria-pressed', b.dataset.mode===state.mode));
   $('#gamePanel').hidden = state.mode!=='game'; $('#realPanel').hidden = state.mode!=='real';
-  renderShell();
+  renderShell(); renderMoney(S);
   // seats
   miniCards($('#dealerCards'),state.round.d,'none yet');
   miniCards($('#playerCards'),state.round.p,'none yet');
@@ -1236,6 +1270,62 @@ function renderSys(S){
   $('#sysTbl').innerHTML=`<thead><tr><th>System</th>${RANKS.map(r=>`<th class="num">${disp(r)}</th>`).join('')}<th class="num">BC</th><th class="num">PE</th><th class="num">IC</th><th>Now</th><th style="min-width:220px">Notes</th></tr></thead><tbody>`+
     Object.entries(SYSTEMS).map(([k,s])=>{const c=S.counts[k]; return `<tr${k===state.sys?' style="background:rgba(214,166,74,.08)"':''}><td><strong>${s.name}</strong><br><span class="kbd">level ${s.level} · ${s.balanced?'balanced':'unbalanced'}</span></td>${s.tags.map(t=>`<td class="num">${t>0?'+':''}${t}</td>`).join('')}<td class="num">${s.bc.toFixed(2)}</td><td class="num">${s.pe.toFixed(2)}</td><td class="num">${s.ic.toFixed(2)}</td><td class="num">${s.balanced?'TC '+fmt(c.tc):'RC '+fmt(c.rc,0)}</td><td class="kbd">${s.note}</td></tr>`;}).join('')+`</tbody>`;
 }
+
+// ---- My money: bankroll tracker with an automatic step plan ----
+const eur = n => '€'+(Math.round(n*100)/100).toLocaleString(undefined,{maximumFractionDigits:2});
+const NICE=[1,2,4,5,10,20,25,50,100,200,250,500,1000];
+const styleDiv = ()=>({safe:150,smart:75,bold:40})[state.style]||75;
+function steps(){ return NICE.filter(n=>n>=state.unit).concat(NICE.includes(state.unit)?[]:[state.unit]).sort((a,b)=>a-b); }
+function pickUnit(m){ if(!state.autoUnit) return state.unit; const raw=m/styleDiv(); let u=state.unit; for(const n of steps()) if(n<=raw) u=n; return u; }
+function curUnit(){ return state.autoUnit ? (state.curUnit||pickUnit(state.money)) : state.unit; }
+function updateUnit(){ // step up at unit × divisor, step down below two-thirds of that, so bets don't flip every hand
+  if(!state.autoUnit){ state.curUnit=state.unit; return null; }
+  const st=steps(), d=styleDiv(), before=curUnit(); let u=before, i=st.indexOf(u); if(i<0){ u=pickUnit(state.money); i=st.indexOf(u); }
+  while(i+1<st.length && state.money>=st[i+1]*d){ i++; u=st[i]; }
+  while(i>0 && state.money<st[i]*d*2/3){ i--; u=st[i]; }
+  state.curUnit=u; return u!==before ? {from:before, to:u} : null;
+}
+function planText(){
+  const u=curUnit(), st=steps(), d=styleDiv(), i=st.indexOf(u);
+  if(!state.autoUnit) return `Fixed bets: ${eur(u)} units, max ${eur(u*state.spread)}.`;
+  const up = i+1<st.length ? `up to ${eur(st[i+1])} units at ${eur(st[i+1]*d)}` : '';
+  const down = i>0 ? `down to ${eur(st[i-1])} units below ${eur(Math.ceil(u*d*2/3))}` : '';
+  return `Bets now: ${eur(u)} units, max ${eur(u*state.spread)}. `+[up,down].filter(Boolean).join(' · ')+'.';
+}
+function restartMoney(){ state.money=state.bank; state.moneyLog=[]; state.curUnit=pickUnit(state.money); state.betNow=null; }
+function suggestedBet(S){ const g=wongSignal(S.hiloTC, state.inReal, state.entry, state.exit, state.spread); return g.units*curUnit(); }
+function recordResult(mult){
+  const bet=+$('#m-bet').value||0;
+  addMoney(mult==='bj' ? bet*state.rules.bj : bet*mult, mult==='bj'?'BJ':'');
+}
+function addMoney(delta, tag){
+  state.money=Math.round((state.money+delta)*100)/100; state.moneyLog.push({d:delta, u:curUnit(), t:tag||''});
+  state.inReal=true;
+  const ch=updateUnit();
+  $('#m-note').textContent = state.money<state.unit ? 'Your money is below the smallest bet. That’s the end of this bankroll: press Restart to begin a new one.'
+    : ch ? (ch.to>ch.from ? `You’re up to ${eur(state.money)}: bets step up to ${eur(ch.to)} units.` : `You’re down to ${eur(state.money)}: bets step down to ${eur(ch.to)} units to protect what’s left.`) : '';
+  state.betNow=null; render();
+}
+function renderMoney(S){
+  const show = state.mode==='real';
+  $('#moneyCard').hidden=!show; if(!show) return;
+  $('#m-money').textContent=eur(state.money);
+  const diff=state.money-state.bank; $('#m-session').innerHTML=`<span class="pill ${diff>0?'good':diff<0?'bad':'warn'}">${diff>=0?'+':'−'}${eur(Math.abs(diff))}</span> since ${eur(state.bank)}`;
+  $('#m-plan').textContent=planText();
+  if(state.betNow==null) state.betNow=suggestedBet(S);
+  const inp=$('#m-bet'); if(document.activeElement!==inp) inp.value=state.betNow;
+  $('#m-betsrc').textContent = state.betNow ? 'From the signal at the start of this round. Change it if you bet something else.' : 'The signal says sit out this round. If you played anyway, type what you bet.';
+  $('#m-log').innerHTML=state.moneyLog.slice(-6).map(x=>`<span style="color:${x.d>0?'var(--good)':x.d<0?'var(--bad)':'var(--muted)'}">${x.d>0?'+':x.d<0?'−':'±'}${eur(Math.abs(x.d)).slice(1)}${x.t==='BJ'?' BJ':''}</span>`).join('');
+}
+$('#m-bet').addEventListener('change',e=>{ state.betNow=Math.max(0,+e.target.value||0); render(); });
+document.querySelector('.money-btns').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return;
+  if(b.dataset.res==='other'){ $('#m-otherRow').hidden=false; $('#m-other').focus(); return; }
+  recordResult(b.dataset.res==='bj'?'bj':+b.dataset.res); });
+$('#m-otherAdd').addEventListener('click',()=>{ const v=+$('#m-other').value; if(!v) return; $('#m-other').value=''; $('#m-otherRow').hidden=true; addMoney(v); });
+$('#m-undo').addEventListener('click',()=>{ const x=state.moneyLog.pop(); if(!x) return; state.money=Math.round((state.money-x.d)*100)/100; state.curUnit=x.u; $('#m-note').textContent='Last result removed.'; state.betNow=null; render(); });
+let resetArmed=false;
+$('#m-reset').addEventListener('click',()=>{ const b=$('#m-reset'); if(!resetArmed){ resetArmed=true; b.textContent='Tap again to restart at '+eur(state.bank); setTimeout(()=>{resetArmed=false;b.textContent='Restart';},3000); return; }
+  resetArmed=false; b.textContent='Restart'; restartMoney(); $('#m-note').textContent='Started again at '+eur(state.bank)+'.'; render(); });
 
 // App shell: bottom nav, centre button, guide, live hints
 function renderShell(){
